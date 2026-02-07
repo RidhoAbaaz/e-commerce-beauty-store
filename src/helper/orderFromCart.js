@@ -22,6 +22,7 @@ const orderFromCartHelper = async (userId, orderId, products, create_at, from) =
     
             const newHistory = {
                 history_id: historyId,
+                product_id: item.product_id,
                 name: item.name,
                 price: item.price,
                 variant: item.variant,
