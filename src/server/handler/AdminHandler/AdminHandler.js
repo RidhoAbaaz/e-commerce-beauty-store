@@ -1,6 +1,6 @@
 const { nanoid } = require('nanoid');
 const bcrypt = require('bcrypt');
-const { addProduct, updateProduct, deleteProduct, addBatch, getProductByName, getAllBatch, addBanner, getProductById, deleteBatch, updateBatch, updateStatus, getDashboardContent, deleteNotification, checkExpBatch, addNotification, checkStockproduct, getAllnotification, getAllOrder, getAllBanner, getBatchById, getBannerById, deleteBanner, updateBanner, addUser, checkCollectionGroup } = require("../../../services/firestore");
+const { addProduct, updateProduct, deleteProduct, addBatch, getProductByName, getAllBatch, addBanner, getProductById, deleteBatch, updateBatch, updateStatus, getDashboardContent, deleteNotification, checkExpBatch, addNotification, checkStockproduct, getAllnotification, getAllOrder, getAllBanner, getBatchById, getBannerById, deleteBanner, updateBanner, addUser, checkCollectionGroup, getNotificationByData, updateStatusNotification } = require("../../../services/firestore");
 const { uploadImageBanner, uploadProductImage } = require("../../../services/cloudStorage");
 const InputError = require('../../../exceptions/InputError');
 const Boom = require('@hapi/boom');
@@ -178,8 +178,10 @@ const updateBatchHandler = async (req, h) => {
     const data = req.payload;
     const { batchId, productId } = req.params;
     const update_at = new Date().toISOString();
+
     const newBatch = {
         ...data,
+        exp_date: Timestamp.fromDate(new Date(data.exp_date)),
         update_at,
     }
 
@@ -329,27 +331,41 @@ const checkExpBatchhandler = async (_, h) => {
 
     if (exp_batch.length !== 0) {
         for (const item of exp_batch) {
-            const newNotif = {
-                notification_id: notifId,
-                ...item,
-                category: "expired batch",
-                message: "the batch is expired",
-                create_at
+            const isExist = await getNotificationByData(item.data);
+
+            if (isExist && isExist.message == "this batch will expired soon") {
+                await updateStatusNotification(isExist.notification_id, {
+                    message: "the batch is expired",
+                    create_at: new Date().toISOString()
+                })
+            } else {
+                const newNotif = {
+                    notification_id: notifId,
+                    ...item,
+                    category: "expired batch",
+                    message: "the batch is expired",
+                    create_at
+                }
+                
+                await addNotification(notifId, newNotif);
             }
-            await addNotification(notifId, newNotif);
+            
         }
     }
 
     if (exp_soon.length !== 0) {
         for (const item of exp_soon) {
-            const newNotif = {
-                notification_id: notifId,
-                ...item,
-                category: "expired soon",
-                message: "this batch will expired soon",
-                create_at
+            const isExist = await getNotificationByData(item.data);
+            if (!isExist) {
+                const newNotif = {
+                    notification_id: notifId,
+                    ...item,
+                    category: "expired soon",
+                    message: "this batch will expired soon",
+                    create_at
+                }
+                await addNotification(notifId, newNotif);
             }
-            await addNotification(notifId, newNotif);
         }
     }
     
@@ -369,27 +385,40 @@ const checkStockProductHandler = async (_, h) => {
 
     if (empty_stock.length !== 0) {
         for (const item of empty_stock) {
-            const newNotif = {
-                notification_id: notifId,
-                ...item,
-                category: "out of stock",
-                message: "the product is out of stock",
-                create_at
+            const isExist = await getNotificationByData(item.data);
+
+            if (isExist && isExist.message == "the product will out of stock soon") {
+                await updateStatusNotification(isExist.notification_id, {
+                    message: "the product is out of stock",
+                    create_at: new Date().toISOString()
+                })
+            } else {
+                const newNotif = {
+                    notification_id: notifId,
+                    ...item,
+                    category: "out of stock",
+                    message: "the product is out of stock",
+                    create_at
+                }
+                await addNotification(notifId, newNotif);
             }
-            await addNotification(notifId, newNotif);
+            
         }
     }
 
     if (empty_soon.length !== 0) {
         for (const item of empty_soon) {
-            const newNotif = {
-                notification_id: notifId,
-                ...item,
-                category: "out of stock soon",
-                message: "the product will out of stock soon",
-                create_at
+            const isExist = await getNotificationByData(item.data);
+            if (!isExist) {
+                const newNotif = {
+                    notification_id: notifId,
+                    ...item,
+                    category: "out of stock soon",
+                    message: "the product will out of stock soon",
+                    create_at
+                }
+                await addNotification(notifId, newNotif);
             }
-            await addNotification(notifId, newNotif);
         }
     }
     

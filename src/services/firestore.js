@@ -731,7 +731,7 @@ const checkExpBatch = async () => {
         const endOfMount = Timestamp.fromDate(end);
 
         const [expBatch, expSoon] = await Promise.all([
-            db.collectionGroup("batches").where("status", "==" , "available" || "expired").where("exp_date", "<=", today).get(),
+            db.collectionGroup("batches").where("status", "==" , "available").where("exp_date", "<", today).get(),
             db.collectionGroup("batches").where("status", "==" , "available").where("exp_date", ">=", startOfMount).where("exp_date", "<=", endOfMount).get()
         ]);
 
@@ -812,10 +812,21 @@ const checkStockproduct = async () => {
 //clear
 const getAllnotification = async () => {
     try {
-        const notifications = await db.collection("notifications").get();
+        const notifications = await db.collection("notifications").orderBy("create_at", "asc").get();
         if (notifications.empty) return [];
 
         return notifications.docs.map(item => item.data());
+    } catch (error) {
+        throw Boom.internal(error.message);
+    }
+}
+
+const getNotificationByData = async (identifier) => {
+    try {
+        const notification = await db.collection("notifications").where("data", "==", identifier).get();
+        if (!notification.empty) {
+            return notification.docs[0].data();
+        }
     } catch (error) {
         throw Boom.internal(error.message);
     }
@@ -825,10 +836,8 @@ const getAllnotification = async () => {
 const addNotification = async (notifId, data) => {
     try {
         const notifCollection = db.collection("notifications");
-        const isExist = await notifCollection.where("data", "==", data.data).get();
-        if (isExist.empty) {
-            await notifCollection.doc(notifId).set(data);
-        }
+
+        await notifCollection.doc(notifId).set(data);
     } catch (error) {
         throw Boom.internal(error.message);
     }
@@ -840,6 +849,16 @@ const deleteNotification = async (notifId) => {
         const notifCollection = db.collection("notifications").doc(notifId);
         
         await notifCollection.delete()
+    } catch (error) {
+        throw Boom.internal(error.message);
+    }
+}
+
+const updateStatusNotification = async (notifId, message) => {
+    try {
+        const notification = db.collection("notifications").doc(notifId);
+        await notification.update(message)
+        
     } catch (error) {
         throw Boom.internal(error.message);
     }
@@ -899,5 +918,6 @@ module.exports = {
     getCartById, getFavoriteById, checkExpBatch, getAllnotification, addNotification, 
     deleteNotification, getDashboardContent, checkStockproduct, getAllOrder, getBatchById,
     getAllOrderItem, getBatchRecap, getBannerById, deleteBanner, getAddress,
-    updateAddress, deleteAddress, getAddressById, getToolbarContent, checkCollectionGroup
+    updateAddress, deleteAddress, getAddressById, getToolbarContent, checkCollectionGroup,
+    getNotificationByData, updateStatusNotification
 };
