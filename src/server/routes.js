@@ -1,4 +1,4 @@
-const { adminRegisterHandler, addProductHandler, updateProductHandler, addBatchHandler, deleteProductHandler, addBannerHandler, updateBatchHandler, deleteBatchHandler, updateStatusOrderhandler, checkExpBatchhandler, deleteNotificationHandler, getDashboardContentHandler, checkStockProductHandler, getAllnotificationHandler, getAllOrderHandler, getAllBannerHandler, getBatchByIdHandler, getBannerByIdHandler, deleteBannerHandler, updateBannerHandler, checkCollectionGroupHandler } = require("./handler/AdminHandler/AdminHandler");
+const { adminRegisterHandler, addProductHandler, updateProductHandler, addBatchHandler, deleteProductHandler, addBannerHandler, updateBatchHandler, deleteBatchHandler, updateStatusOrderhandler, checkExpBatchhandler, deleteNotificationHandler, getDashboardContentHandler, checkStockProductHandler, getAllnotificationHandler, getAllOrderHandler, getAllBannerHandler, getBatchByIdHandler, getBannerByIdHandler, deleteBannerHandler, updateBannerHandler, checkCollectionGroupHandler, getAdminHadnler, deleteAdminHandler } = require("./handler/AdminHandler/AdminHandler");
 const { UserLoginHandler, UserRegisterHandler, updatePasswordHandler, updateProfileHandler, addAddressHandler, getAllProductHandler, getProductByIdHandler, getHomeContentHandler, makeOrderHandler, addCartHandler, getAllCarthandler, getHistoryHandler, getUserOrderHandler, getOrderByIdHandler, getAllFavoriteHandler, getProfileHandler, addFavoritehandler, deleteCartHandler, getProductExpHandler, getCartByIdHandler, getFavoriteByIdHandler, getAddressHandler, deleteFavoriteHandler, deleteAddressHandler, updateAddressHandler, getAddressByIdHandler, getToolbarContentHandler } = require("./handler/CustomerHandler/UserHandler");
 
 const routes = [
@@ -11,6 +11,12 @@ const routes = [
                 message: "server running successfully",
             })
         } 
+    },
+
+    {
+        method: "GET",
+        path: "/users",
+        handler: getAdminHadnler
     },
 
     //clear -> frontend & Backend *
@@ -62,7 +68,12 @@ const routes = [
         handler: deleteAddressHandler,
     },
 
-    //clear
+    {
+        method: "DELETE",
+        path: "/user/{userId}",
+        handler: deleteAdminHandler
+    },
+    //clear Frontend & Backend
     {
         method:"POST",
         path: "/adminSignup",

@@ -1,6 +1,6 @@
 const { nanoid } = require('nanoid');
 const bcrypt = require('bcrypt');
-const { addProduct, updateProduct, deleteProduct, addBatch, getProductByName, getAllBatch, addBanner, getProductById, deleteBatch, updateBatch, updateStatus, getDashboardContent, deleteNotification, checkExpBatch, addNotification, checkStockproduct, getAllnotification, getAllOrder, getAllBanner, getBatchById, getBannerById, deleteBanner, updateBanner, addUser, checkCollectionGroup, getNotificationByData, updateStatusNotification } = require("../../../services/firestore");
+const { addProduct, updateProduct, deleteProduct, addBatch, getProductByName, getAllBatch, addBanner, getProductById, deleteBatch, updateBatch, updateStatus, getDashboardContent, deleteNotification, checkExpBatch, addNotification, checkStockproduct, getAllnotification, getAllOrder, getAllBanner, getBatchById, getBannerById, deleteBanner, updateBanner, addUser, checkCollectionGroup, getNotificationByData, updateStatusNotification, getAdmin, deleteAdmin } = require("../../../services/firestore");
 const { uploadImageBanner, uploadProductImage } = require("../../../services/cloudStorage");
 const InputError = require('../../../exceptions/InputError');
 const Boom = require('@hapi/boom');
@@ -151,7 +151,7 @@ const addBatchHandler = async (req, h) => {
 
     return h.response({
         status: "success",
-        message: "added batch"
+        message: "successfully added batch"
     })
 }
 
@@ -166,7 +166,7 @@ const deleteBatchHandler =  async (req, h) => {
 
     return h.response({
         status: "success",
-        message: "product delete successfully"
+        message: "batch delete successfully"
     });
 }
 
@@ -439,9 +439,30 @@ const checkCollectionGroupHandler = async (_, h) => {
     })
 }
 
+const getAdminHadnler = async (_, h) => {
+    const admin = await getAdmin()
+
+    return h.response({
+        status: "success",
+        message: "fetch success",
+        admin
+    })
+}
+
+const deleteAdminHandler = async (req, h) => {
+    const { userId } = req.params;
+    await deleteAdmin(userId);
+
+    return h.response({
+        status: "success",
+        message: "user deleted successfully"
+    })
+}
+
 module.exports = { 
     adminRegisterHandler, addProductHandler, updateProductHandler, deleteProductHandler, addBatchHandler, 
     addBannerHandler, deleteBatchHandler, updateBatchHandler, updateStatusOrderhandler, getDashboardContentHandler,
     checkExpBatchhandler, deleteNotificationHandler, checkStockProductHandler, getAllnotificationHandler, getAllOrderHandler,
-    getAllBannerHandler, getBatchByIdHandler, getBannerByIdHandler, deleteBannerHandler, checkCollectionGroupHandler
+    getAllBannerHandler, getBatchByIdHandler, getBannerByIdHandler, deleteBannerHandler, checkCollectionGroupHandler,
+    getAdminHadnler, deleteAdminHandler
 }

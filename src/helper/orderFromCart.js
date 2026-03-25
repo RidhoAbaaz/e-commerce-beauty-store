@@ -5,8 +5,10 @@ const { nanoid } = require('nanoid');
 //clear
 const orderFromCartHelper = async (userId, orderId, products, create_at, from) => {
     try {
-        for (const item of products) {
+        const allPromises = products.map(async (item) => {
+
             const historyId = nanoid(5);
+
             const newItems = {
                 product_id: item.product_id,
                 name: item.name,
@@ -19,34 +21,44 @@ const orderFromCartHelper = async (userId, orderId, products, create_at, from) =
                 sub_total: item.sub_total,
                 create_at,
             }
-    
+            
             const newHistory = {
                 history_id: historyId,
-                product_id: item.product_id,
-                name: item.name,
-                price: item.price,
-                variant: item.variant,
-                brand: item.brand,
-                category: item.category,
-                image_url: item.image_url,
-                qty: item.qty,
-                sub_total: item.sub_total,
-                create_at,
+                ...newItems
             }
             
-            await addOrderItem(orderId, newItems);
-            if (from === "Cart") {
-                await deleteCart(userId, item.product_id);
-            }
-            
-            await addHistory(userId, historyId, newHistory);
-
             const batchRecap = await checkoutBatch(item.product_id, item.qty);
+            
+            const allOps = [
+                addOrderItem(orderId, newItems),
+                addHistory(userId, historyId, newHistory)
+            ]
 
-            for (const recap of batchRecap) {
-                await addBatchRecap(orderId, item.product_id, recap);
+            if (from === "Cart") {
+                allOps.push(deleteCart(userId, item.product_id));
+            }
+
+            await Promise.all(allOps);
+
+            return {
+                item,
+                batchRecap
+            }
+        });
+
+        const results = await Promise.all(allPromises);
+
+        const recapPromises = [];
+        
+        for (const result of results) {
+            for (const recap of result.batchRecap) {
+                recapPromises.push(
+                    addBatchRecap(orderId, result.item.product_id, recap)
+                );
             }
         }
+
+        await Promise.all(recapPromises);
     } catch (error) {
         throw Boom.internal(error.message);
     }

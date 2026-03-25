@@ -224,7 +224,10 @@ const addBatch = async (productId, data) => {
         if(batchSnap.exists) throw new InputError("batch already exist");
         
         tx.set(batch, data);
-        tx.update(product, {total_stock: stokeBefore + data.stock});
+        tx.update(product, {
+            total_stock: stokeBefore + data.stock,
+            status: productSnap.data().status === "out of stock" ? "available" : productSnap.data().status
+        });
 
     });
 }
@@ -460,7 +463,8 @@ const showBatchRecap = async (productId, qtyNeeded) => {
 
             const batch = doc.data();
             const stock = Number(batch.stock ?? 0);
-            if(stock <= 0 || batch.exp_date < today) continue;
+            if (batch.exp_date < today) throw Boom.badRequest("Product Expired");
+            if(stock <= 0) continue;
 
             const take = Math.min(stock, qtyRemaining);
 
@@ -472,7 +476,7 @@ const showBatchRecap = async (productId, qtyNeeded) => {
             qtyRemaining -= take;
         }
         
-        if (qtyRemaining > 0) throw Boom.internal(`Out of Stock`);
+        if (qtyRemaining > 0) throw Boom.badRequest(`Out of Stock`);
 
         return batchRecap;
     });
@@ -480,67 +484,75 @@ const showBatchRecap = async (productId, qtyNeeded) => {
 
 //clear
 const checkoutBatch = async (productId, qtyNeeded) => {
-    return db.runTransaction(async (tx) => {
-        const today = Timestamp.now();
+    const maxRetry = 3;
+    for (let index = 0; index < maxRetry; index++) {
+        try {
+            return db.runTransaction(async (tx) => {
 
-        const product = db.collection("products").doc(productId);
-        const batchCollection = product.collection("batches");
-
-        const productSnapshoot = await tx.get(product);
-        if (!productSnapshoot.exists) throw Boom.notFound("Product not found");
-
-        let productStock = Number(productSnapshoot.data().total_stock ?? 0);
-
-        if (productStock < qtyNeeded) {
-            throw Boom.badRequest("Out of Stock");
-        }
-
-        const batchSnapshoot = await tx.get(
-            batchCollection.orderBy("exp_date", "asc")
-        );
-
-        if(batchSnapshoot.empty) throw new Error("Batch Not Found");
-
-        let qtyRemaining = qtyNeeded;
-        const batchRecap = [];
-
-        for (const doc of batchSnapshoot.docs) {
-            if(qtyRemaining <= 0) break;
-
-            const batch = doc.data();
-            const stock = Number(batch.stock ?? 0);
-            if(stock <= 0 || batch.exp_date < today) continue;
-
-            const take = Math.min(stock, qtyRemaining);
-            const newStock = stock - take;
-
-            tx.update(doc.ref, {
-                stock: newStock,
-                status: newStock == 0 ? "habis" : batch.status,
+                const today = Timestamp.now();
+        
+                const product = db.collection("products").doc(productId);
+                const batchCollection = product.collection("batches");
+        
+                const productSnapshoot = await tx.get(product);
+                if (!productSnapshoot.exists) throw Boom.notFound("Product not found");
+        
+                let productStock = Number(productSnapshoot.data().total_stock ?? 0);
+        
+                if (productStock < qtyNeeded) {
+                    throw Boom.badRequest("Out of Stock");
+                }
+        
+                const batchSnapshoot = await tx.get(
+                    batchCollection.orderBy("exp_date", "asc").limit(5)
+                );
+        
+                if(batchSnapshoot.empty) throw new Error("Batch Not Found");
+        
+                let qtyRemaining = qtyNeeded;
+                const batchRecap = [];
+        
+                for (const doc of batchSnapshoot.docs) {
+                    if(qtyRemaining <= 0) break;
+        
+                    const batch = doc.data();
+                    const stock = Number(batch.stock ?? 0);
+                    if(stock <= 0 || batch.exp_date < today) continue;
+        
+                    const take = Math.min(stock, qtyRemaining);
+                    const newStock = stock - take;
+        
+                    tx.update(doc.ref, {
+                        stock: newStock,
+                        status: newStock == 0 ? "habis" : batch.status,
+                    });
+        
+                    batchRecap.push({
+                        batch_code: batch.batch_code,
+                        exp_date: batch.exp_date.toDate().toISOString().split('T')[0],
+                        take,
+                        before: stock,
+                        after: newStock,
+                    });
+        
+                    qtyRemaining -= take;
+                    productStock -= take;
+                }
+        
+                tx.update(productSnapshoot.ref, {
+                    status: productStock === 0 ? "out of stock" : productSnapshoot.data().status,
+                    total_stock: productStock,
+                    updated_at: new Date().toISOString(),
+                });
+        
+                if (qtyRemaining > 0) throw Boom.badRequest(`product out of stock`);
+        
+                return batchRecap;
             });
-
-            batchRecap.push({
-                batch_code: batch.batch_code,
-                exp_date: batch.exp_date.toDate().toISOString().split('T')[0],
-                take,
-                before: stock,
-                after: newStock,
-            });
-
-            qtyRemaining -= take;
-            productStock -= take;
+        } catch (error) {
+            if (index === maxRetry - 1) throw Boom.badRequest(error.message);
         }
-
-        tx.update(productSnapshoot.ref, {
-            status: productStock === 0 ? "out of stock" : productSnapshoot.data().status,
-            total_stock: productStock,
-            updated_at: new Date().toISOString(),
-        });
-
-        if (qtyRemaining > 0) throw Boom.internal(`Something Went Wrong`);
-
-        return batchRecap;
-    });
+    }
 }
 
 //clear
@@ -907,6 +919,19 @@ const getToolbarContent = async (userId) => {
     }
 }
 
+const getAdmin = async () => {
+    const admin = await db.collection("users").where("role", "==", "admin").get();
+    return admin.docs.map(doc => 
+        doc.data()
+    );
+}
+
+const deleteAdmin = async (id) => {
+    const user = await db.collection("users").doc(id).get();
+    if(!user.exists) throw Boom.notFound("user not found");
+    await user.ref.delete();
+}
+
 module.exports = { 
     getUserByName, addUser, addAddress, updateProfile, updatePassword, 
     addProduct, updateProduct, deleteProduct, addBatch, updateBatch, 
@@ -919,5 +944,5 @@ module.exports = {
     deleteNotification, getDashboardContent, checkStockproduct, getAllOrder, getBatchById,
     getAllOrderItem, getBatchRecap, getBannerById, deleteBanner, getAddress,
     updateAddress, deleteAddress, getAddressById, getToolbarContent, checkCollectionGroup,
-    getNotificationByData, updateStatusNotification
+    getNotificationByData, updateStatusNotification, getAdmin, deleteAdmin
 };
